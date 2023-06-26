@@ -2,13 +2,7 @@
 
 #include "drawingview.h"
 #include "myapp.h"
-
 #include "canvas/drawingcanvas.h"
-#include "canvas/drawingvisitor.h"
-
-#include "shapes/shapefactory.h"
-
-#include "utils/visitor.h"
 
 wxIMPLEMENT_DYNAMIC_CLASS(DrawingView, wxView);
 
@@ -53,60 +47,91 @@ void DrawingView::OnDraw(wxDC *dc)
 
     if (gc)
     {
-        DrawingVisitor drawingVisitor{*gc};
-
-        for (const auto &s : GetDocument()->shapes)
+        for (const auto &obj : GetDocument()->objects)
         {
-            std::visit(drawingVisitor, s);
+            obj.Draw(*gc);
         }
+
+        if (selection)
+        {
+            selection->Draw(*gc);
+        }
+
+        shapeCreator.Draw(*gc);
     }
 }
 
 void DrawingView::OnMouseDown(wxPoint pt)
 {
-    lastDragStart = pt;
+    if (MyApp::GetToolSettings().currentTool == ToolType::Transform)
+    {
+        // prioritize current selection handles hit test
+        if (selection.has_value())
+        {
+            selection->StartDragIfClicked(pt);
+        }
 
-    GetDocument()->shapes.push_back(ShapeFactory::Create(MyApp::GetToolSettings(), pt));
-    GetDocument()->Modify(true);
+        bool clickedOnCurrentSelection = selection.has_value() && selection->IsDragging();
+
+        if (!clickedOnCurrentSelection)
+        {
+            // set selection to clicked object or clear selection if clicked on empty space
+            auto iterator = std::find_if(GetDocument()->objects.rbegin(), GetDocument()->objects.rend(), [&](auto &object)
+                                         { return object.boundingBox.Contains(ObjectSpace::ToObjectCoordinates(object, pt)); });
+
+            selection = iterator != GetDocument()->objects.rend() ? std::make_optional(SelectionBox{*iterator, MyApp::GetToolSettings().selectionHandleWidth}) : std::nullopt;
+
+            // immediately start dragging if clicked on object
+            if (selection.has_value())
+            {
+                selection->StartDragIfClicked(pt);
+            }
+        }
+    }
+    else
+    {
+        selection = {};
+        shapeCreator.Start(MyApp::GetToolSettings(), pt);
+    }
 }
 
 void DrawingView::OnMouseDrag(wxPoint pt)
 {
-    auto &shapeInCreation = GetDocument()->shapes.back();
-
-    std::visit(visitor{[&](Path &path)
-                       {
-                           path.points.push_back(pt);
-                       },
-                       [&](Rect &rect)
-                       {
-                           auto left = std::min(lastDragStart.x, pt.x);
-                           auto top = std::min(lastDragStart.y, pt.y);
-                           auto right = std::max(lastDragStart.x, pt.x);
-                           auto bottom = std::max(lastDragStart.y, pt.y);
-
-                           rect.rect.SetLeft(left);
-                           rect.rect.SetTop(top);
-                           rect.rect.SetRight(right);
-                           rect.rect.SetBottom(bottom);
-                       },
-                       [&](Circle &circle)
-                       {
-                           circle.radius = std::sqrt(std::pow(pt.x - circle.center.m_x, 2) + std::pow(pt.y - circle.center.m_y, 2));
-                       }},
-               shapeInCreation);
-
-    GetDocument()->Modify(true);
+    if (MyApp::GetToolSettings().currentTool == ToolType::Transform)
+    {
+        if (selection.has_value() && selection->IsDragging())
+        {
+            selection->Drag(pt);
+            GetDocument()->Modify(true);
+        }
+    }
+    else
+    {
+        shapeCreator.Update(pt);
+    }
 }
 
 void DrawingView::OnMouseDragEnd()
 {
-    // Nothing to do here
+    if (MyApp::GetToolSettings().currentTool == ToolType::Transform)
+    {
+        if (selection.has_value())
+        {
+            selection->FinishDrag();
+        }
+    }
+    else
+    {
+        selection = {};
+        GetDocument()->objects.push_back(shapeCreator.FinishAndGenerateObject());
+        GetDocument()->Modify(true);
+    }
 }
 
 void DrawingView::OnClear()
 {
-    GetDocument()->shapes.clear();
+    selection = {};
+    GetDocument()->objects.clear();
     GetDocument()->Modify(true);
 }
 

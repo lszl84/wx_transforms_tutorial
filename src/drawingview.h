@@ -1,8 +1,13 @@
 #pragma once
 
+#include <optional>
+
 #include <wx/docview.h>
 
 #include "drawingdocument.h"
+#include "canvas/canvasobject.h"
+#include "canvas/shapecreator.h"
+#include "canvas/selectionbox.h"
 
 class DrawingView : public wxView
 {
@@ -23,7 +28,8 @@ public:
 
     DrawingDocument *GetDocument() const;
 
-    wxPoint lastDragStart;
+    ShapeCreator shapeCreator;
+    std::optional<SelectionBox> selection;
 
     wxDECLARE_DYNAMIC_CLASS(DrawingView);
 };

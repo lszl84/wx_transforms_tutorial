@@ -82,6 +82,8 @@ bool MyApp::OnInit()
 
     frame = new MyFrame(docManager.get(), nullptr, wxID_ANY, wxGetApp().GetAppDisplayName());
     frame->Show(true);
+
+    toolSettings.selectionHandleWidth = frame->FromDIP(10);
     return true;
 }
 
@@ -153,7 +155,7 @@ void MyFrame::SetupPenPanes(wxWindow *parent, wxSizer *sizer)
 
 void MyFrame::SetupToolPanes(wxWindow *parent, wxSizer *sizer)
 {
-    for (const auto toolType : {ToolType::Pen, ToolType::Rect, ToolType::Circle})
+    for (const auto toolType : {ToolType::Pen, ToolType::Rect, ToolType::Circle, ToolType::Transform})
     {
         auto toolPane = new ToolSelectionPane(parent, wxID_ANY, toolType);
 

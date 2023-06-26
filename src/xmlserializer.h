@@ -8,9 +8,8 @@
 #include <memory>
 
 #include "shapes/shape.h"
-#include "shapes/path.h"
-#include "shapes/rect.h"
-#include "shapes/circle.h"
+#include "canvas/canvasobject.h"
+#include "transforms/transformation.h"
 
 namespace XmlNodeKeys
 {
@@ -31,6 +30,13 @@ namespace XmlNodeKeys
     constexpr auto HeightAttribute = "height";
     constexpr auto TypeAttribute = "type";
 
+    constexpr auto TransformationNodeName = "Transformation";
+    constexpr auto RotationAttribute = "rotation";
+    constexpr auto ScaleXAttribute = "scaleX";
+    constexpr auto ScaleYAttribute = "scaleY";
+    constexpr auto TranslationXAttribute = "translationX";
+    constexpr auto TranslationYAttribute = "translationY";
+
     constexpr auto DocumentNodeName = "PaintDocument";
     constexpr auto VersionAttribute = "version";
     constexpr auto VersionValue = "1.2";
@@ -38,15 +44,11 @@ namespace XmlNodeKeys
 
 struct XmlSerializingVisitor
 {
-    XmlSerializingVisitor(wxXmlNode *parentNode) : parentNode(parentNode)
-    {
-    }
-
-    wxXmlNode *parentNode;
+    wxXmlNode *objectNode;
 
     void operator()(const Circle &circle)
     {
-        wxXmlNode *objectNode = new wxXmlNode(wxXML_ELEMENT_NODE, XmlNodeKeys::ObjectNodeName);
+        objectNode = new wxXmlNode(wxXML_ELEMENT_NODE, XmlNodeKeys::ObjectNodeName);
         objectNode->AddAttribute(XmlNodeKeys::TypeAttribute, XmlNodeKeys::CircleNodeType);
         objectNode->AddAttribute(XmlNodeKeys::ColorAttribute, circle.color.GetAsString(wxC2S_HTML_SYNTAX));
         objectNode->AddAttribute(XmlNodeKeys::RadiusAttribute, wxString::FromDouble(circle.radius));
@@ -56,12 +58,11 @@ struct XmlSerializingVisitor
         circleNode->AddAttribute(XmlNodeKeys::YAttribute, wxString::FromDouble(circle.center.m_y));
 
         objectNode->AddChild(circleNode);
-        parentNode->AddChild(objectNode);
     }
 
     void operator()(const Rect &rectangle)
     {
-        wxXmlNode *objectNode = new wxXmlNode(wxXML_ELEMENT_NODE, XmlNodeKeys::ObjectNodeName);
+        objectNode = new wxXmlNode(wxXML_ELEMENT_NODE, XmlNodeKeys::ObjectNodeName);
         objectNode->AddAttribute(XmlNodeKeys::TypeAttribute, XmlNodeKeys::RectNodeType);
         objectNode->AddAttribute(XmlNodeKeys::ColorAttribute, rectangle.color.GetAsString(wxC2S_HTML_SYNTAX));
 
@@ -72,12 +73,11 @@ struct XmlSerializingVisitor
         rectNode->AddAttribute(XmlNodeKeys::HeightAttribute, wxString::FromDouble(rectangle.rect.m_height));
 
         objectNode->AddChild(rectNode);
-        parentNode->AddChild(objectNode);
     }
 
     void operator()(const Path &path)
     {
-        wxXmlNode *objectNode = new wxXmlNode(wxXML_ELEMENT_NODE, XmlNodeKeys::ObjectNodeName);
+        objectNode = new wxXmlNode(wxXML_ELEMENT_NODE, XmlNodeKeys::ObjectNodeName);
 
         objectNode->AddAttribute(XmlNodeKeys::TypeAttribute, XmlNodeKeys::PathNodeType);
         objectNode->AddAttribute(XmlNodeKeys::ColorAttribute, path.color.GetAsString(wxC2S_HTML_SYNTAX));
@@ -90,12 +90,10 @@ struct XmlSerializingVisitor
             pointNode->AddAttribute(XmlNodeKeys::YAttribute, wxString::FromDouble(point.m_y));
             objectNode->AddChild(pointNode);
         }
-
-        parentNode->AddChild(objectNode);
     }
 };
 
-struct XmlDeserializingObjectFactory
+struct XmlDeserializingShapeFactory
 {
     Shape Deserialize(const wxXmlNode *node)
     {
@@ -172,18 +170,21 @@ struct XmlSerializer
         wxFileSystem::AddHandler(new wxZipFSHandler);
     }
 
-    wxXmlDocument SerializeShapes(const std::vector<Shape> &objects)
+    wxXmlDocument SerializeCanvasObjects(const std::vector<CanvasObject> &objects)
     {
         wxXmlDocument doc;
 
         wxXmlNode *docNode = new wxXmlNode(wxXML_ELEMENT_NODE, XmlNodeKeys::DocumentNodeName);
         docNode->AddAttribute(XmlNodeKeys::VersionAttribute, XmlNodeKeys::VersionValue);
 
-        XmlSerializingVisitor visitor{docNode};
+        XmlSerializingVisitor visitor;
 
         for (const auto &obj : objects)
         {
-            std::visit(visitor, obj);
+            std::visit(visitor, obj.shape);
+            SerializeTransformation(obj.transformation, visitor.objectNode);
+
+            docNode->AddChild(visitor.objectNode);
         }
 
         doc.SetRoot(docNode);
@@ -191,23 +192,60 @@ struct XmlSerializer
         return doc;
     }
 
-    std::vector<Shape> DeserializeShapes(const wxXmlDocument &doc)
+    void SerializeTransformation(const Transformation &t, wxXmlNode *parentNode)
+    {
+        wxXmlNode *transformationNode = new wxXmlNode(wxXML_ELEMENT_NODE, XmlNodeKeys::TransformationNodeName);
+
+        transformationNode->AddAttribute(XmlNodeKeys::TranslationXAttribute, wxString::FromDouble(t.translationX));
+        transformationNode->AddAttribute(XmlNodeKeys::TranslationYAttribute, wxString::FromDouble(t.translationY));
+        transformationNode->AddAttribute(XmlNodeKeys::RotationAttribute, wxString::FromDouble(t.rotationAngle));
+
+        transformationNode->AddAttribute(XmlNodeKeys::ScaleXAttribute, wxString::FromDouble(t.scaleX));
+        transformationNode->AddAttribute(XmlNodeKeys::ScaleYAttribute, wxString::FromDouble(t.scaleY));
+
+        parentNode->AddChild(transformationNode);
+    }
+
+    std::vector<CanvasObject> DeserializeCanvasObjects(const wxXmlDocument &doc)
     {
         wxXmlNode *root = doc.GetRoot();
 
-        std::vector<Shape> objects;
+        std::vector<CanvasObject> objects;
 
-        XmlDeserializingObjectFactory factory{};
+        XmlDeserializingShapeFactory shapeFactory{};
 
         for (wxXmlNode *node = root->GetChildren(); node; node = node->GetNext())
         {
             if (node->GetName() != XmlNodeKeys::ObjectNodeName)
                 continue;
 
-            objects.emplace_back(factory.Deserialize(node));
+            Shape shape = shapeFactory.Deserialize(node);
+            auto transformation = DeserializeTransformation(node);
+
+            objects.emplace_back(shape, transformation);
         }
 
         return objects;
+    }
+
+    Transformation DeserializeTransformation(wxXmlNode *objectNode)
+    {
+        Transformation t{};
+        for (wxXmlNode *node = objectNode->GetChildren(); node; node = node->GetNext())
+        {
+            if (node->GetName() != XmlNodeKeys::TransformationNodeName)
+                continue;
+
+            t.translationX = wxAtof(node->GetAttribute(XmlNodeKeys::TranslationXAttribute));
+            t.translationY = wxAtof(node->GetAttribute(XmlNodeKeys::TranslationYAttribute));
+
+            t.rotationAngle = wxAtof(node->GetAttribute(XmlNodeKeys::RotationAttribute));
+
+            t.scaleX = wxAtof(node->GetAttribute(XmlNodeKeys::ScaleXAttribute));
+            t.scaleY = wxAtof(node->GetAttribute(XmlNodeKeys::ScaleYAttribute));
+        }
+
+        return t;
     }
 
     void CompressXml(const wxXmlDocument &doc, wxOutputStream &outStream)

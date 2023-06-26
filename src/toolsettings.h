@@ -6,7 +6,8 @@ enum class ToolType
 {
     Pen,
     Rect,
-    Circle
+    Circle,
+    Transform
 };
 
 struct ToolSettings
@@ -15,4 +16,6 @@ struct ToolSettings
     wxColour currentColor{*wxBLACK};
 
     ToolType currentTool{ToolType::Pen};
+
+    double selectionHandleWidth; // setup this with FromDIP
 };

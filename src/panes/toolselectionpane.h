@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include "selectablepane.h"
 #include "../toolsettings.h"
 
@@ -63,6 +65,21 @@ void ToolSelectionPane::DrawContent(wxGraphicsContext *gc, const wxRect &rect, i
     case ToolType::Circle:
         gc->DrawEllipse(-itemWidth / 2, -itemWidth / 2, itemWidth, itemWidth);
         break;
+    case ToolType::Transform:
+    {
+        std::array<wxPoint2DDouble, 8> points = {{{0, -itemWidth * 2 / 3},
+                                                  {-itemWidth * 5 / 12, 0},
+                                                  {-itemWidth / 8, -itemWidth / 12},
+                                                  {-itemWidth / 8, itemWidth * 2 / 3},
+                                                  {itemWidth / 8, itemWidth * 2 / 3},
+                                                  {itemWidth / 8, -itemWidth / 12},
+                                                  {itemWidth * 5 / 12, 0},
+                                                  {0, -itemWidth * 2 / 3}}};
+
+        gc->Rotate(-M_PI / 4.0);
+        gc->StrokeLines(points.size(), points.data());
+        break;
+    }
     }
 
     gc->PopState();

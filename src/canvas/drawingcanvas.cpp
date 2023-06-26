@@ -77,6 +77,8 @@ void DrawingCanvas::OnMouseDown(wxMouseEvent &event)
     view->OnMouseDown(event.GetPosition());
     isDragging = true;
     Refresh();
+
+    event.Skip(); // For correct focus handling
 }
 
 void DrawingCanvas::OnMouseMove(wxMouseEvent &event)
@@ -94,6 +96,7 @@ void DrawingCanvas::OnMouseUp(wxMouseEvent &)
     {
         isDragging = false;
         view->OnMouseDragEnd();
+        Refresh();
     }
 }
 
@@ -103,6 +106,7 @@ void DrawingCanvas::OnMouseLeave(wxMouseEvent &)
     {
         isDragging = false;
         view->OnMouseDragEnd();
+        Refresh();
     }
 }
 

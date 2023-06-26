@@ -14,7 +14,7 @@ set(wxWidgets_USE_STATIC 1)
 
 find_package(wxWidgets REQUIRED xml core base)
 
-set(SRCS main.cpp canvas/drawingcanvas.cpp drawingdocument.cpp drawingview.cpp)
+set(SRCS main.cpp canvas/drawingcanvas.cpp canvas/objectspace.cpp canvas/selectionbox.cpp drawingdocument.cpp drawingview.cpp)
 
 include(${wxWidgets_USE_FILE})
 

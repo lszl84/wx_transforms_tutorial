@@ -4,7 +4,7 @@
 #include <wx/stdstream.h>
 
 #include "xmlserializer.h"
-#include "shapes/shape.h"
+#include "canvas/canvasobject.h"
 
 #include <iostream>
 
@@ -14,7 +14,7 @@ public:
     std::ostream &SaveObject(std::ostream &stream) override;
     std::istream &LoadObject(std::istream &stream) override;
 
-    std::vector<Shape> shapes;
+    std::vector<CanvasObject> objects;
     XmlSerializer serializer;
 
     wxDECLARE_DYNAMIC_CLASS(DrawingDocument);
