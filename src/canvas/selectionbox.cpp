@@ -19,7 +19,7 @@ void SelectionBox::Draw(wxGraphicsContext &gc) const
 {
     gc.PushState();
 
-    gc.SetTransform(gc.CreateMatrix()); // empty transforms as the handle positions are already in screen coordinates
+    gc.SetTransform(gc.CreateMatrix()); // empty transform as the handle positions are already in screen coordinates
 
     gc.SetPen(wxPen(wxColour(128, 128, 128), 1));
     gc.SetBrush(*wxTRANSPARENT_BRUSH);
@@ -37,8 +37,6 @@ void SelectionBox::Draw(wxGraphicsContext &gc) const
     gc.StrokeLines(rectVertices.size(), rectVertices.data());
     gc.StrokeLine(rotationHandleStart.m_x, rotationHandleStart.m_y, rotationHandleCenter.m_x, rotationHandleCenter.m_y);
 
-    gc.PopState(); // we will do different transformations for the handles as we want them to be always the same size
-
     auto handleCenters = std::array{
         GetTopLeftHandleCenter(),
         GetTopRightHandleCenter(),
@@ -50,6 +48,8 @@ void SelectionBox::Draw(wxGraphicsContext &gc) const
     {
         DrawHandle(gc, center);
     }
+
+    gc.PopState();
 }
 
 void SelectionBox::DrawHandle(wxGraphicsContext &gc, wxPoint2DDouble center) const
